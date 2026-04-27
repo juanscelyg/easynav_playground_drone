@@ -18,15 +18,20 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 import os
-
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, IncludeLaunchDescription
+from launch.actions import ExecuteProcess, IncludeLaunchDescription, DeclareLaunchArgument, OpaqueFunction
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
-from launch.substitutions import Command, PathJoinSubstitution, LaunchConfiguration, FindExecutable
+from launch.substitutions import Command, PathJoinSubstitution, LaunchConfiguration, FindExecutable, PythonExpression
 import launch_ros.descriptions
 
+
+def get_world(context, *args, **kwargs):
+    world_arg = LaunchConfiguration('world').perform(context)
+    x_arg = LaunchConfiguration('x').perform(context)
+    y_arg = LaunchConfiguration('y').perform(context)
+    z_arg = LaunchConfiguration('z').perform(context)
 
 def generate_launch_description():
     prefix = LaunchConfiguration("prefix", default="")
@@ -35,8 +40,30 @@ def generate_launch_description():
     ws_dir = install_dir.split("install")[0]
     sim_path = ws_dir+"src/ThirdParty/worlds/PX4-gazebo-models"
     sitl_path = ws_dir+"src/ThirdParty/robots/drone/PX4-Autopilot"
-    
-    world = "urjc_excavation"
+
+    world_arg = DeclareLaunchArgument(
+        	'world',
+			default_value='urjc_excavation',
+			description='World to be launched',
+    )
+
+    x_arg = DeclareLaunchArgument(
+        	'x',
+			default_value='0',
+			description='X init position',
+    )
+
+    y_arg = DeclareLaunchArgument(
+        	'y',
+			default_value='0',
+			description='Y init position',
+    )
+
+    z_arg = DeclareLaunchArgument(
+        	'z',
+			default_value='0.75',
+			description='Z init position',
+    )
 
     sdf_file = os.path.join(sim_path, 'models', 'x500_lidar_3d_front', 'model.sdf')
 
@@ -77,7 +104,7 @@ def generate_launch_description():
             'python3',
             'simulation-gazebo',
             '--world',
-            world
+            LaunchConfiguration('world')
         ],
         cwd=sim_path,
         output='screen'
@@ -92,7 +119,8 @@ def generate_launch_description():
         cwd=sitl_path,
         additional_env={
             'PX4_GZ_STANDALONE': '1',
-            'PX4_GZ_WORLD': [world, '_world']
+            'PX4_GZ_WORLD': [LaunchConfiguration('world'), '_world'],
+            'PX4_GZ_MODEL_POSE': ([LaunchConfiguration('x'),',', LaunchConfiguration('y'),',', LaunchConfiguration('z'),',0,0,0']),
         },
         output='screen'
     )
@@ -124,13 +152,18 @@ def generate_launch_description():
     )
 
     roboligo = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource([os.path.join(
+        PythonLaunchDescriptionSource(os.path.join(
             get_package_share_directory('roboligo'),
-            'launch/'), 'roboligo.launch.py']),
+            'launch', 'roboligo.launch.py')),
     )
 
     return LaunchDescription([
         # tf,
+        world_arg,
+        x_arg,
+        y_arg,
+        z_arg,
+        OpaqueFunction(function=get_world),
         gazebo_sim,
         px4_sitl,
         bridge,
