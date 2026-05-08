@@ -20,10 +20,11 @@
 import os
 from ament_index_python.packages import get_package_prefix, get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import ExecuteProcess, IncludeLaunchDescription, DeclareLaunchArgument, OpaqueFunction
+from launch.actions import ExecuteProcess, IncludeLaunchDescription, DeclareLaunchArgument, OpaqueFunction, RegisterEventHandler
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.actions import Node
-from launch.substitutions import Command, PathJoinSubstitution, LaunchConfiguration, FindExecutable, PythonExpression
+from launch.substitutions import Command, PathJoinSubstitution, LaunchConfiguration, FindExecutable
+from launch.event_handlers import OnProcessStart
 import launch_ros.descriptions
 
 
@@ -157,6 +158,42 @@ def generate_launch_description():
             'launch', 'roboligo.launch.py')),
     )
 
+    on_gazebo_init = RegisterEventHandler(
+        OnProcessStart(
+            target_action=gazebo_sim,
+            on_start=[
+                px4_sitl
+            ],
+        )
+    )
+
+    on_px4_init = RegisterEventHandler(
+        OnProcessStart(
+            target_action=px4_sitl,
+            on_start=[
+                bridge
+            ],
+        )
+    )
+
+    on_bridge_init = RegisterEventHandler(
+        OnProcessStart(
+            target_action=bridge,
+            on_start=[
+                mavros
+            ],
+        )
+    )
+
+    on_mavros_init = RegisterEventHandler(
+        OnProcessStart(
+            target_action=mavros,
+            on_start=[
+                roboligo
+            ],
+        )
+    )
+
     return LaunchDescription([
         # tf,
         world_arg,
@@ -165,10 +202,10 @@ def generate_launch_description():
         z_arg,
         OpaqueFunction(function=get_world),
         gazebo_sim,
-        px4_sitl,
-        bridge,
-        mavros,
-        roboligo,
+        on_gazebo_init,
+        on_px4_init,
+        on_bridge_init,
+        on_mavros_init,
         # robot_state_publisher_node
     ])
 
